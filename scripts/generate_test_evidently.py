@@ -3,17 +3,12 @@
 
 import logging
 from pathlib import Path
+
 import pandas as pd
-from evidently import ColumnMapping
-from evidently.metric_preset import (
-    DataDriftPreset,
-    DataQualityPreset,
-)
+from evidently.metric_preset import DataDriftPreset, DataQualityPreset
 from evidently.report import Report
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
 df = pd.read_parquet("data/processed/features.parquet")
@@ -30,13 +25,8 @@ num_cols = [
     and df[c].dtype in ["float64", "float32", "int64"]
 ]
 
-column_mapping = ColumnMapping(
-    target="label",
-    numerical_features=num_cols,
-)
-
 report = Report(metrics=[DataQualityPreset(), DataDriftPreset()])
-report.run(reference_data=train, current_data=test, column_mapping=column_mapping)
+report.run(reference_data=train[num_cols], current_data=test[num_cols])
 
 out = Path("reports/evidently")
 out.mkdir(parents=True, exist_ok=True)

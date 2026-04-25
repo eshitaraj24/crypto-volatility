@@ -1,11 +1,10 @@
 """Integration tests for FastAPI endpoints."""
-import pytest
-from fastapi.testclient import TestClient
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from fastapi.testclient import TestClient
 from api.main import app
 
 client = TestClient(app)
@@ -31,7 +30,7 @@ SAMPLE_FEATURES = {
     "spread_mean_60s": 0.000002,
     "trade_intensity_60s": 3.5,
     "spread_bps": 0.05,
-    "mid_price": 66900.0
+    "mid_price": 66900.0,
 }
 
 
@@ -52,8 +51,16 @@ def test_version():
     assert "features" in data
 
 
-def test_metrics():
+def test_metrics_prometheus():
+    # /metrics now returns Prometheus text format
     response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "http_request" in response.text
+
+
+def test_metrics_json():
+    # /metrics/json returns JSON format
+    response = client.get("/metrics/json")
     assert response.status_code == 200
     data = response.json()
     assert "total_predictions" in data
@@ -74,3 +81,12 @@ def test_predict_returns_product_id():
     assert response.status_code == 200
     data = response.json()
     assert data["product_id"] == "BTC-USD"
+
+
+def test_predict_baseline_variant():
+    os.environ["MODEL_VARIANT"] = "baseline"
+    response = client.post("/predict", json={"features": SAMPLE_FEATURES})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_variant"] == "ml"  # loaded at startup
+    os.environ["MODEL_VARIANT"] = "ml"
