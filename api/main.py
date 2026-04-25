@@ -1,11 +1,13 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
 import json
+import signal
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
 import numpy as np
 import xgboost as xgb
-from pathlib import Path
-from datetime import datetime, timezone
-import time
+from fastapi import FastAPI
+from pydantic import BaseModel
 
 app = FastAPI(title="Crypto Volatility API", version="1.0.0")
 
@@ -24,6 +26,16 @@ BEST_THRESHOLD = meta["best_threshold"]
 START_TIME = time.time()
 predict_count = 0
 spike_count = 0
+is_shutting_down = False
+
+
+def handle_shutdown(signum, frame):
+    global is_shutting_down
+    is_shutting_down = True
+
+
+signal.signal(signal.SIGTERM, handle_shutdown)
+signal.signal(signal.SIGINT, handle_shutdown)
 
 
 class PredictRequest(BaseModel):
@@ -41,7 +53,7 @@ class PredictResponse(BaseModel):
 @app.get("/health")
 def health():
     return {
-        "status": "ok",
+        "status": "shutting_down" if is_shutting_down else "ok",
         "uptime_seconds": round(time.time() - START_TIME, 1),
         "model_loaded": True,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -93,5 +105,5 @@ def metrics():
         "uptime_seconds": round(uptime, 1),
         "predictions_per_minute": round(predict_count / max(uptime / 60, 1), 2),
         "model_threshold": BEST_THRESHOLD,
-        "status": "healthy",
+        "status": "shutting_down" if is_shutting_down else "healthy",
     }
