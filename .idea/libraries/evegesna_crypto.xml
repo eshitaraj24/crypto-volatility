@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="evegesna_crypto">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/evegesna_crypto.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

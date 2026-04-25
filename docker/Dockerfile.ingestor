@@ -1,0 +1,12 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir websockets kafka-python python-dotenv pyyaml
+
+COPY scripts/ws_ingest.py scripts/ws_ingest.py
+COPY config.yaml .
+COPY .env.example .env
+
+CMD ["python", "scripts/ws_ingest.py", "--pair", "BTC-USD", "--minutes", "60"]

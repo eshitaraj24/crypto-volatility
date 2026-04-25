@@ -1,0 +1,8 @@
+{
+  "type": "zscore",
+  "feature": "ret_std_60s",
+  "mu": 2.2723349630144564e-05,
+  "sigma": 1.3389607956512739e-05,
+  "z_multiplier": 1.5,
+  "threshold": 4.280776156491367e-05
+}

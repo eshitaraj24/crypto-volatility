@@ -1,0 +1,20 @@
+kafka:
+  bootstrap_servers: "localhost:9092"
+  topic_raw: "ticks.raw"
+  topic_features: "ticks.features"
+  group_id: "crypto-pipeline"
+
+coinbase:
+  ws_url: "wss://advanced-trade-ws.coinbase.com"
+  pairs:
+    - "BTC-USD"
+    - "ETH-USD"
+
+features:
+  window_sizes: [10, 30, 60]      # seconds
+  spike_horizon: 60               # seconds ahead
+  spike_threshold: 0.000020           # set after EDA
+
+mlflow:
+  tracking_uri: "http://localhost:5001"
+  experiment_name: "crypto-volatility"
