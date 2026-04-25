@@ -10,11 +10,12 @@ import logging
 import time
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import xgboost as xgb
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 log = logging.getLogger(__name__)
 
 ARTIFACTS_DIR = Path("models/artifacts")
@@ -31,14 +32,14 @@ def load_model():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--features", required=True)
-    parser.add_argument("--out",      default="data/processed/predictions.csv")
+    parser.add_argument("--out", default="data/processed/predictions.csv")
     args = parser.parse_args()
 
     df = pd.read_parquet(args.features)
     df = df.sort_values("ts").reset_index(drop=True)
 
     model, meta = load_model()
-    feat_cols     = meta["feature_cols"]
+    feat_cols = meta["feature_cols"]
     best_threshold = meta["best_threshold"]
 
     # Estimate covered real-time span
@@ -56,8 +57,8 @@ def main():
     inference_time = t1 - t0
     rtf = inference_time / real_time_span if real_time_span > 0 else 0
 
-    df["spike_prob"]  = scores
-    df["spike_pred"]  = (scores >= best_threshold).astype(int)
+    df["spike_prob"] = scores
+    df["spike_pred"] = (scores >= best_threshold).astype(int)
 
     log.info("Scored %d rows in %.3fs (%.4fx real-time)", len(df), inference_time, rtf)
 
@@ -72,7 +73,11 @@ def main():
     log.info("Predictions saved → %s", out)
 
     print("\n--- Sample predictions ---")
-    print(df[["ts", "product_id", "spike_prob", "spike_pred"]].tail(10).to_string(index=False))
+    print(
+        df[["ts", "product_id", "spike_prob", "spike_pred"]]
+        .tail(10)
+        .to_string(index=False)
+    )
 
 
 if __name__ == "__main__":

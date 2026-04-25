@@ -8,9 +8,7 @@ import argparse
 import json
 import logging
 import os
-import time
 from collections import defaultdict, deque
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -20,15 +18,17 @@ from kafka import KafkaConsumer, KafkaProducer
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 log = logging.getLogger(__name__)
 
-KAFKA_BOOTSTRAP  = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
-TOPIC_IN         = "ticks.raw"
-TOPIC_OUT        = "ticks.features"
-WINDOW_SIZES     = [10, 30, 60]   # seconds
-SPIKE_HORIZON    = 60             # seconds
-PROCESSED_DIR    = Path("data/processed")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
+TOPIC_IN = "ticks.raw"
+TOPIC_OUT = "ticks.features"
+WINDOW_SIZES = [10, 30, 60]  # seconds
+SPIKE_HORIZON = 60  # seconds
+PROCESSED_DIR = Path("data/processed")
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -37,7 +37,7 @@ class WindowBuffer:
 
     def __init__(self, max_seconds: int = 120):
         self.max_seconds = max_seconds
-        self.ticks: deque = deque()   # list of dicts with 'ts', 'mid', 'bid', 'ask'
+        self.ticks: deque = deque()  # list of dicts with 'ts', 'mid', 'bid', 'ask'
 
     def add(self, ts: float, mid: float, bid: float, ask: float):
         self.ticks.append({"ts": ts, "mid": mid, "bid": bid, "ask": ask})
@@ -56,7 +56,7 @@ def compute_features(buf: WindowBuffer, now: float, product_id: str) -> dict | N
     """Compute all windowed features for a single tick."""
     w60 = buf.window(60, now)
     if len(w60) < 5:
-        return None   # not enough data yet
+        return None  # not enough data yet
 
     feat = {
         "ts": now,
@@ -72,9 +72,9 @@ def compute_features(buf: WindowBuffer, now: float, product_id: str) -> dict | N
 
         rets = np.diff(np.log(mids)) if len(mids) >= 2 else np.array([0.0])
 
-        feat[f"ret_mean_{w}s"]   = float(np.mean(rets))
-        feat[f"ret_std_{w}s"]    = float(np.std(rets)) if len(rets) > 1 else 0.0
-        feat[f"ret_abs_{w}s"]    = float(np.mean(np.abs(rets)))
+        feat[f"ret_mean_{w}s"] = float(np.mean(rets))
+        feat[f"ret_std_{w}s"] = float(np.std(rets)) if len(rets) > 1 else 0.0
+        feat[f"ret_abs_{w}s"] = float(np.mean(np.abs(rets)))
         feat[f"tick_count_{w}s"] = len(ticks)
 
         spreads = [(t["ask"] - t["bid"]) / t["mid"] for t in ticks if t["mid"] > 0]
@@ -91,8 +91,8 @@ def compute_features(buf: WindowBuffer, now: float, product_id: str) -> dict | N
     mid = latest["mid"]
     bid = latest["bid"]
     ask = latest["ask"]
-    feat["spread_bps"]   = (ask - bid) / mid * 10_000 if mid > 0 else 0.0
-    feat["mid_price"]    = mid
+    feat["spread_bps"] = (ask - bid) / mid * 10_000 if mid > 0 else 0.0
+    feat["mid_price"] = mid
 
     return feat
 
@@ -102,12 +102,14 @@ def featurize_records(records: list[dict]) -> pd.DataFrame:
     Pure function: take a list of raw tick dicts, return feature DataFrame.
     Used by both live consumer and replay script.
     """
-    buffers: dict[str, WindowBuffer] = defaultdict(lambda: WindowBuffer(max_seconds=130))
+    buffers: dict[str, WindowBuffer] = defaultdict(
+        lambda: WindowBuffer(max_seconds=130)
+    )
     rows = []
 
     for rec in records:
         try:
-            ts  = pd.Timestamp(rec["ts"]).timestamp()
+            ts = pd.Timestamp(rec["ts"]).timestamp()
             mid = (float(rec["best_bid"]) + float(rec["best_ask"])) / 2
             bid = float(rec["best_bid"])
             ask = float(rec["best_ask"])
@@ -168,7 +170,9 @@ def run_live(topic_in: str, topic_out: str, output_path: str, max_msgs: int | No
         value_serializer=lambda v: json.dumps(v).encode(),
     )
 
-    buffers: dict[str, WindowBuffer] = defaultdict(lambda: WindowBuffer(max_seconds=130))
+    buffers: dict[str, WindowBuffer] = defaultdict(
+        lambda: WindowBuffer(max_seconds=130)
+    )
     rows = []
     count = 0
 
@@ -177,7 +181,7 @@ def run_live(topic_in: str, topic_out: str, output_path: str, max_msgs: int | No
     for msg in consumer:
         rec = msg.value
         try:
-            ts  = pd.Timestamp(rec["ts"]).timestamp()
+            ts = pd.Timestamp(rec["ts"]).timestamp()
             mid = (float(rec["best_bid"]) + float(rec["best_ask"])) / 2
             bid = float(rec["best_bid"])
             ask = float(rec["best_ask"])
@@ -211,10 +215,10 @@ def run_live(topic_in: str, topic_out: str, output_path: str, max_msgs: int | No
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--topic_in",  default=TOPIC_IN)
+    parser.add_argument("--topic_in", default=TOPIC_IN)
     parser.add_argument("--topic_out", default=TOPIC_OUT)
-    parser.add_argument("--output",    default=str(PROCESSED_DIR / "features.parquet"))
-    parser.add_argument("--max_msgs",  type=int, default=None)
+    parser.add_argument("--output", default=str(PROCESSED_DIR / "features.parquet"))
+    parser.add_argument("--max_msgs", type=int, default=None)
     args = parser.parse_args()
 
     run_live(args.topic_in, args.topic_out, args.output, args.max_msgs)

@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import signal
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,9 +28,9 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 COINBASE_WS_URL = os.getenv("COINBASE_WS_URL", "wss://advanced-trade-ws.coinbase.com")
-KAFKA_BOOTSTRAP  = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
-TOPIC_RAW        = "ticks.raw"
-RAW_DIR          = Path("data/raw")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
+TOPIC_RAW = "ticks.raw"
+RAW_DIR = Path("data/raw")
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 # Global stop flag
@@ -50,7 +49,9 @@ def get_producer(retries: int = 10, delay: float = 3.0) -> KafkaProducer:
             log.info("Kafka producer connected to %s", KAFKA_BOOTSTRAP)
             return producer
         except NoBrokersAvailable:
-            log.warning("Kafka not ready, retry %d/%d in %.0fs…", attempt + 1, retries, delay)
+            log.warning(
+                "Kafka not ready, retry %d/%d in %.0fs…", attempt + 1, retries, delay
+            )
             time.sleep(delay)
     raise RuntimeError("Could not connect to Kafka after %d retries" % retries)
 
@@ -82,7 +83,9 @@ async def send_heartbeat(ws, interval: float = 10.0):
         await asyncio.sleep(interval)
 
 
-async def ingest(pairs: list[str], minutes: float, producer: KafkaProducer, mirror: bool):
+async def ingest(
+    pairs: list[str], minutes: float, producer: KafkaProducer, mirror: bool
+):
     deadline = time.time() + minutes * 60
     raw_file = None
 
@@ -163,8 +166,12 @@ async def ingest(pairs: list[str], minutes: float, producer: KafkaProducer, mirr
 def main():
     parser = argparse.ArgumentParser(description="Coinbase WS Ingestor")
     parser.add_argument("--pair", nargs="+", default=["BTC-USD"], help="Trading pairs")
-    parser.add_argument("--minutes", type=float, default=15.0, help="Run duration in minutes")
-    parser.add_argument("--no-mirror", action="store_true", help="Don't write NDJSON files")
+    parser.add_argument(
+        "--minutes", type=float, default=15.0, help="Run duration in minutes"
+    )
+    parser.add_argument(
+        "--no-mirror", action="store_true", help="Don't write NDJSON files"
+    )
     args = parser.parse_args()
 
     def _shutdown(sig, frame):

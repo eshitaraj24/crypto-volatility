@@ -10,18 +10,21 @@ import json
 import logging
 from pathlib import Path
 
-import pandas as pd
 
 from features.featurizer import featurize_records, add_labels
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 log = logging.getLogger(__name__)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--raw",   nargs="+", required=True, help="Glob pattern or list of NDJSON files")
-    parser.add_argument("--out",   default="data/processed/features.parquet")
+    parser.add_argument(
+        "--raw", nargs="+", required=True, help="Glob pattern or list of NDJSON files"
+    )
+    parser.add_argument("--out", default="data/processed/features.parquet")
     parser.add_argument("--threshold", type=float, default=None)
     args = parser.parse_args()
 

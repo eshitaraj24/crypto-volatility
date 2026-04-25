@@ -12,7 +12,9 @@ import time
 
 from kafka import KafkaConsumer
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 log = logging.getLogger(__name__)
 
 
@@ -52,7 +54,9 @@ def main():
         log.info("✅ SUCCESS: %d messages received in %.1fs", count, elapsed)
         sys.exit(0)
     else:
-        log.error("❌ FAIL: only %d/%d messages in %.1fs", count, args.min_msgs, elapsed)
+        log.error(
+            "❌ FAIL: only %d/%d messages in %.1fs", count, args.min_msgs, elapsed
+        )
         sys.exit(1)
 
 

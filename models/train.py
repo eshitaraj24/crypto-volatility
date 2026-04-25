@@ -8,7 +8,6 @@ import argparse
 import json
 import logging
 import os
-import time
 from pathlib import Path
 
 import mlflow
@@ -17,20 +16,24 @@ import mlflow.xgboost
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (average_precision_score, f1_score,
-                             precision_recall_curve, roc_auc_score)
-from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import (
+    average_precision_score,
+    f1_score,
+    precision_recall_curve,
+    roc_auc_score,
+)
 import xgboost as xgb
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 log = logging.getLogger(__name__)
 
-MLFLOW_URI      = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
+MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 EXPERIMENT_NAME = "crypto-volatility"
-ARTIFACTS_DIR   = Path("models/artifacts")
+ARTIFACTS_DIR = Path("models/artifacts")
 ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -44,16 +47,19 @@ def load_and_split(parquet_path: str):
     log.info("Dataset: %d rows, spike rate: %.1f%%", len(df), df["label"].mean() * 100)
 
     n = len(df)
-    i_val  = int(n * 0.60)
+    i_val = int(n * 0.60)
     i_test = int(n * 0.80)
 
     train = df.iloc[:i_val]
-    val   = df.iloc[i_val:i_test]
-    test  = df.iloc[i_test:]
+    val = df.iloc[i_val:i_test]
+    test = df.iloc[i_test:]
 
-    feat_cols = [c for c in df.columns
-                 if c not in ["ts", "product_id", "label", "future_vol"]
-                 and df[c].dtype in ["float64", "float32", "int64", "int32"]]
+    feat_cols = [
+        c
+        for c in df.columns
+        if c not in ["ts", "product_id", "label", "future_vol"]
+        and df[c].dtype in ["float64", "float32", "int64", "int32"]
+    ]
 
     log.info("Train: %d | Val: %d | Test: %d", len(train), len(val), len(test))
     log.info("Features: %s", feat_cols)
@@ -63,27 +69,34 @@ def load_and_split(parquet_path: str):
 
 def evaluate(y_true, y_pred, y_score, split_name: str) -> dict:
     pr_auc = average_precision_score(y_true, y_score)
-    roc    = roc_auc_score(y_true, y_score)
+    roc = roc_auc_score(y_true, y_score)
 
     # F1 at 0.5 threshold
-    f1     = f1_score(y_true, y_pred, zero_division=0)
+    f1 = f1_score(y_true, y_pred, zero_division=0)
 
     # F1 at best threshold
     prec, rec, thresholds = precision_recall_curve(y_true, y_score)
     f1_scores = 2 * prec * rec / (prec + rec + 1e-12)
-    best_f1   = float(np.max(f1_scores))
-    best_thr  = float(thresholds[np.argmax(f1_scores)]) if len(thresholds) > 0 else 0.5
+    best_f1 = float(np.max(f1_scores))
+    best_thr = float(thresholds[np.argmax(f1_scores)]) if len(thresholds) > 0 else 0.5
 
     metrics = {
-        f"{split_name}_pr_auc":  pr_auc,
+        f"{split_name}_pr_auc": pr_auc,
         f"{split_name}_roc_auc": roc,
-        f"{split_name}_f1":      f1,
+        f"{split_name}_f1": f1,
         f"{split_name}_best_f1": best_f1,
         f"{split_name}_best_threshold": best_thr,
         f"{split_name}_spike_rate": float(y_true.mean()),
     }
-    log.info("%s — PR-AUC=%.4f | ROC-AUC=%.4f | F1=%.4f | Best-F1=%.4f@%.3f",
-             split_name, pr_auc, roc, f1, best_f1, best_thr)
+    log.info(
+        "%s — PR-AUC=%.4f | ROC-AUC=%.4f | F1=%.4f | Best-F1=%.4f@%.3f",
+        split_name,
+        pr_auc,
+        roc,
+        f1,
+        best_f1,
+        best_thr,
+    )
     return metrics
 
 
@@ -95,25 +108,31 @@ def train_baseline(train, val, test, feat_cols):
         params = {"z_multiplier": 1.5, "feature": "ret_std_60s"}
         mlflow.log_params(params)
 
-        col   = "ret_std_60s"
-        mu    = train[col].mean()
+        col = "ret_std_60s"
+        mu = train[col].mean()
         sigma = train[col].std()
         threshold = mu + params["z_multiplier"] * sigma
         mlflow.log_param("zscore_threshold", threshold)
 
         all_metrics = {}
         for split_name, split_df in [("val", val), ("test", test)]:
-            y_true  = split_df["label"].values
-            y_score = split_df[col].values   # higher = more volatile
-            y_pred  = (y_score >= threshold).astype(int)
+            y_true = split_df["label"].values
+            y_score = split_df[col].values  # higher = more volatile
+            y_pred = (y_score >= threshold).astype(int)
             m = evaluate(y_true, y_pred, y_score, split_name)
             all_metrics.update(m)
 
         mlflow.log_metrics(all_metrics)
 
         # Save threshold artifact
-        artifact = {"type": "zscore", "feature": col, "mu": mu, "sigma": sigma,
-                    "z_multiplier": params["z_multiplier"], "threshold": threshold}
+        artifact = {
+            "type": "zscore",
+            "feature": col,
+            "mu": mu,
+            "sigma": sigma,
+            "z_multiplier": params["z_multiplier"],
+            "threshold": threshold,
+        }
         artifact_path = ARTIFACTS_DIR / "baseline_zscore.json"
         with open(artifact_path, "w") as f:
             json.dump(artifact, f, indent=2)
@@ -131,37 +150,38 @@ def train_xgboost(train, val, test, feat_cols):
 
     X_train = train[feat_cols].fillna(0).values
     y_train = train["label"].values
-    X_val   = val[feat_cols].fillna(0).values
-    y_val   = val["label"].values
-    X_test  = test[feat_cols].fillna(0).values
-    y_test  = test["label"].values
+    X_val = val[feat_cols].fillna(0).values
+    y_val = val["label"].values
+    X_test = test[feat_cols].fillna(0).values
+    y_test = test["label"].values
 
     # Class weight
     pos_rate = y_train.mean()
-    scale_pw  = (1 - pos_rate) / (pos_rate + 1e-12)
+    scale_pw = (1 - pos_rate) / (pos_rate + 1e-12)
 
     params = {
-        "n_estimators":     300,
-        "max_depth":        4,
-        "learning_rate":    0.05,
-        "subsample":        0.8,
+        "n_estimators": 300,
+        "max_depth": 4,
+        "learning_rate": 0.05,
+        "subsample": 0.8,
         "colsample_bytree": 0.8,
         "scale_pos_weight": scale_pw,
-        "eval_metric":      "aucpr",
+        "eval_metric": "aucpr",
         "use_label_encoder": False,
-        "random_state":     42,
+        "random_state": 42,
     }
 
     with mlflow.start_run(run_name="xgboost_v1"):
         mlflow.log_params({k: v for k, v in params.items() if k != "eval_metric"})
         mlflow.log_param("features", feat_cols)
         mlflow.log_param("train_size", len(X_train))
-        mlflow.log_param("val_size",   len(X_val))
-        mlflow.log_param("test_size",  len(X_test))
+        mlflow.log_param("val_size", len(X_val))
+        mlflow.log_param("test_size", len(X_test))
 
         model = xgb.XGBClassifier(**params)
         model.fit(
-            X_train, y_train,
+            X_train,
+            y_train,
             eval_set=[(X_val, y_val)],
             verbose=50,
         )
@@ -169,7 +189,7 @@ def train_xgboost(train, val, test, feat_cols):
         all_metrics = {}
         for split_name, X, y in [("val", X_val, y_val), ("test", X_test, y_test)]:
             y_score = model.predict_proba(X)[:, 1]
-            y_pred  = model.predict(X)
+            y_pred = model.predict(X)
             m = evaluate(y, y_pred, y_score, split_name)
             all_metrics.update(m)
 
@@ -199,7 +219,11 @@ def train_xgboost(train, val, test, feat_cols):
         best_thr = float(thresholds[np.argmax(f1s)]) if len(thresholds) > 0 else 0.5
         mlflow.log_param("best_threshold_from_val", best_thr)
 
-        meta = {"type": "xgboost", "best_threshold": best_thr, "feature_cols": feat_cols}
+        meta = {
+            "type": "xgboost",
+            "best_threshold": best_thr,
+            "feature_cols": feat_cols,
+        }
         meta_path = ARTIFACTS_DIR / "model_meta.json"
         with open(meta_path, "w") as f:
             json.dump(meta, f, indent=2)
